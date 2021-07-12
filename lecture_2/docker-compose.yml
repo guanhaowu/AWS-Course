@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:5.6
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    environment:
+      - "MYSQL_ROOT_PASSWORD=quintor_pw"
+      - "MYSQL_DATABASE=cddb_quintor"
+      - "MYSQL_USER=cddb_quintor"
+      - "MYSQL_PASSWORD=quintor_pw"
+    ports:
+      - "23306:3306"
+
+  cddb_frontend:
+    depends_on:
+      - cddb_backend
+    build: ./frontend
+    # links:
+    # - "cddb_backend:cddb_backend"
+    ports:
+      - "20080:80"
+
+  cddb_backend:
+    depends_on:
+      - mysql
+    command:
+      ["./wait-for-it.sh", "mysql:3306", "--strict", "--", "catalina.sh", "run"]
+    build: ./backend
+    # links:
+    # - "mysql:cddb_mysql"
+    ports:
+      - "28080:8080"
