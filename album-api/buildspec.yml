@@ -1,0 +1,46 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Executing Dotnet restore command to ensure all packages are installed"
+      - dotnet restore Album-Api
+    build:
+      on-failure: ABORT
+      commands:
+        - echo "Building the Web API backend..."
+        - dotnet build Album-Api/Album.Api
+        - echo "Build completed."
+        - echo "Running GreetingService Unit tests..."
+        - dotnet test Album-Api --filter Album.Api.Tests.GreetingServiceTests --logger "console;verbosity=detailed"
+        - echo "Running Album Unit tests..."
+        - dotnet test Album-Api --filter Album.Api.Tests.AlbumTests --logger "console;verbosity=detailed"
+        - echo "Running Integration tests..."
+        - dotnet test Album-Api --filter Album.Api.Tests.IntegrationTests --logger "console;verbosity=detailed"
+        - echo "Creating a Linux release build version in Root DIR 'Album-Api/app/' ..." # To create the folder required by Dockerfile
+        - dotnet publish -c Release -r linux-x64 -o ./Album-Api/app/ ./Album-Api/Album.Api/Album.Api.csproj
+        - echo "Release build completed."
+      post-build:
+        commands:
+          - echo Logging in to Amazon ECR...
+          - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 374872396823.dkr.ecr.us-east-1.amazonaws.com
+          - echo "Creating Image from Dockerfile..."
+          - docker build -t cnsd/album:latest .
+          - echo "Tagging image to prepare for push to ECR..."
+          - docker tag cnsd/album:latest 374872396823.dkr.ecr.us-east-1.amazonaws.com/cnsd/album:$CODEBUILD_BUILD_NUMBER
+          - echo "Pushing image to ECR..."
+          - docker push 374872396823.dkr.ecr.us-east-1.amazonaws.com/cnsd/album:$CODEBUILD_BUILD_NUMBER
+
+artifacts:
+  files:
+    - 'imageDetail.json'
+    - 'appspec.yaml'
+    - 'taskdef.json'
+  secondary-artifacts:
+    DefinitionArtifact:
+      files:
+        - appspec.yaml
+        - taskdef.json
+    ImageArtifact:
+      files:
+        - imageDetail.json
